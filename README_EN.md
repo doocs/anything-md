@@ -102,7 +102,7 @@ Parameters:
 }
 ```
 
-> 📚 **More Examples**: Check out the [API Usage Examples](docs/api-examples.md) for detailed use cases and examples in various programming languages.
+> 📚 **More Examples**: Check out the [API Usage Examples](docs/api-examples_EN.md) for detailed use cases and examples in various programming languages.
 
 ## Project Structure
 
