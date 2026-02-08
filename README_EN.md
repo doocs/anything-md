@@ -45,7 +45,7 @@ GET /?url=https://example.com
 ### POST Request
 
 ```bash
-curl -X POST https://anything-md.doocs.workers.dev/ \
+curl -X POST https://anything-md.doocs.org/ \
   -H "Content-Type: application/json" \
   -d '{"url": "https://example.com"}'
 ```

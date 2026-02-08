@@ -3,6 +3,7 @@
     {
       "allowed": {
         "origins": [
+          "https://anything-md.doocs.org",
           "https://anything-md.doocs.workers.dev",
           "https://doocs.org",
           "https://*.doocs.org"

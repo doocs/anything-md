@@ -21,6 +21,16 @@
 		"binding": "AI"
 	},
 	/**
+	 * Custom Domain
+	 * https://developers.cloudflare.com/workers/configuration/routing/custom-domains/
+	 */
+	"routes": [
+		{
+			"pattern": "anything-md.doocs.org",
+			"custom_domain": true
+		}
+	],
+	/**
 	 * R2 Object Storage — temporary image cache
 	 * https://developers.cloudflare.com/r2/
 	 */
