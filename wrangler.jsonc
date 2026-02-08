@@ -6,6 +6,7 @@
 	"$schema": "node_modules/wrangler/config-schema.json",
 	"name": "anything-md",
 	"main": "src/index.ts",
+	"workers_dev": true,
 	"compatibility_date": "2026-02-05",
 	"observability": {
 		"enabled": true
