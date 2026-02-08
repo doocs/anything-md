@@ -14,7 +14,7 @@
 
 import { handlePreflight, jsonResponse, errorResponse, textResponse } from './cors';
 import { robustFetch } from './fetch';
-import { extractTitle, preprocessHtml } from './html';
+import { extractTitle, preprocessHtml, isWeChatArticle, extractWeChatContent } from './html';
 import { collectImageUrls, rewriteImageUrls, uploadImages } from './r2';
 import { fetchTimeout, fetchMaxAttempts } from './config';
 
@@ -109,19 +109,26 @@ export default {
 				contentType = directContentType || 'text/html';
 				fileName = directFileName || 'content.html';
 
-				// Encode content to ArrayBuffer
-				body = new TextEncoder().encode(directContent).buffer as ArrayBuffer;
-
-				// For HTML content: preprocess and extract title
+				// For HTML content: extract title first, then process content
 				if (isHtmlContent(contentType)) {
-					const processed = preprocessHtml(directContent);
-					body = new TextEncoder().encode(processed).buffer as ArrayBuffer;
-
-					// Extract title if no custom fileName was provided
+					// Step 1: Extract title from original HTML (before any processing)
 					if (!directFileName) {
 						const title = extractTitle(directContent, 'content');
 						fileName = `${title}.html`;
 					}
+
+					// Step 2: Extract WeChat content if applicable
+					let processedContent = directContent;
+					if (isWeChatArticle(directContent)) {
+						processedContent = extractWeChatContent(directContent);
+					}
+
+					// Step 3: Preprocess lazy-loaded images
+					processedContent = preprocessHtml(processedContent);
+					body = new TextEncoder().encode(processedContent).buffer as ArrayBuffer;
+				} else {
+					// Non-HTML content: encode directly
+					body = new TextEncoder().encode(directContent).buffer as ArrayBuffer;
 				}
 			}
 			// Branch 2: Fetch from URL
@@ -139,14 +146,23 @@ export default {
 				body = await response.arrayBuffer();
 				fileName = getFileName(targetUrl);
 
-				// For HTML content: preprocess lazy images and extract a better title
+				// For HTML content: extract title first, then process content
 				if (isHtmlContent(contentType)) {
 					const rawHtml = new TextDecoder().decode(body);
-					const processed = preprocessHtml(rawHtml);
-					body = new TextEncoder().encode(processed).buffer as ArrayBuffer;
 
+					// Step 1: Extract title from original HTML (before any processing)
 					const title = extractTitle(rawHtml, fileName.replace(/\.html$/, ''));
 					fileName = `${title}.html`;
+
+					// Step 2: Extract WeChat content if applicable
+					let processedHtml = rawHtml;
+					if (isWeChatArticle(rawHtml)) {
+						processedHtml = extractWeChatContent(rawHtml);
+					}
+
+					// Step 3: Preprocess lazy-loaded images
+					processedHtml = preprocessHtml(processedHtml);
+					body = new TextEncoder().encode(processedHtml).buffer as ArrayBuffer;
 				}
 			} else {
 				return errorResponse(env, 'No URL or content provided.');

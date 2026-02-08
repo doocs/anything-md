@@ -1,7 +1,49 @@
 /**
  * HTML processing utilities
- * Title extraction, content escaping, and lazy-image preprocessing.
+ * Title extraction, content escaping, lazy-image preprocessing, and WeChat article extraction.
  */
+
+/**
+ * Check if the HTML is a WeChat Official Account article.
+ * Detects based on common patterns in WeChat article pages.
+ */
+export function isWeChatArticle(html: string): boolean {
+	// Check for WeChat-specific meta tags and elements
+	return (
+		html.includes('id="js_content"') &&
+		html.includes('rich_media_content')
+	);
+}
+
+/**
+ * Extract WeChat article content from the #js_content element.
+ * Returns the extracted content if found, otherwise returns the original HTML.
+ */
+export function extractWeChatContent(html: string): string {
+	// Try to extract content from id="js_content"
+	const contentMatch = html.match(/<div[^>]*id=["']js_content["'][^>]*>([\s\S]*?)<\/div>\s*(?:<\/div>|<script)/i);
+
+	if (contentMatch?.[1]) {
+		const content = contentMatch[1].trim();
+
+		// Build a minimal HTML structure with the extracted content
+		// This preserves the content while removing unnecessary page elements
+		return `<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+</head>
+<body>
+<div id="js_content">
+${content}
+</div>
+</body>
+</html>`;
+	}
+
+	// If extraction fails, return original HTML
+	return html;
+}
 
 /**
  * Extract a meaningful page title from raw HTML.
