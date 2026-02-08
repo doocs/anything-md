@@ -15,6 +15,7 @@ import { handlePreflight, jsonResponse, errorResponse } from './cors';
 import { robustFetch } from './fetch';
 import { extractTitle, preprocessHtml } from './html';
 import { collectImageUrls, rewriteImageUrls, uploadImages } from './r2';
+import { fetchTimeout, fetchMaxAttempts } from './config';
 
 /** Derive a filename from a URL path */
 function getFileName(url: string): string {
@@ -36,7 +37,7 @@ export default {
 	async fetch(request, env, ctx): Promise<Response> {
 		// CORS preflight
 		if (request.method === 'OPTIONS') {
-			return handlePreflight();
+			return handlePreflight(env);
 		}
 
 		// --- Parse target URL from request ---
@@ -49,15 +50,15 @@ export default {
 				const body = (await request.json()) as { url?: string };
 				targetUrl = body.url ?? null;
 			} catch {
-				return errorResponse('Invalid JSON body. Expected: { "url": "https://..." }');
+				return errorResponse(env, 'Invalid JSON body. Expected: { "url": "https://..." }');
 			}
 		} else {
-			return errorResponse('Method not allowed. Use GET or POST.', 405);
+			return errorResponse(env, 'Method not allowed. Use GET or POST.', 405);
 		}
 
 		// No URL provided — return usage info
 		if (!targetUrl) {
-			return jsonResponse({
+			return jsonResponse(env, {
 				success: true,
 				message: 'Anything-MD API — Convert any URL to Markdown',
 				usage: {
@@ -71,15 +72,18 @@ export default {
 		try {
 			new URL(targetUrl);
 		} catch {
-			return errorResponse('Invalid URL provided.');
+			return errorResponse(env, 'Invalid URL provided.');
 		}
 
 		try {
 			// Fetch remote content with retry
-			const response = await robustFetch(targetUrl);
+			const response = await robustFetch(targetUrl, {
+				timeout: fetchTimeout(env),
+				maxAttempts: fetchMaxAttempts(env),
+			});
 
 			if (!response.ok) {
-				return errorResponse(`Failed to fetch URL: ${response.status} ${response.statusText}`, 502);
+				return errorResponse(env, `Failed to fetch URL: ${response.status} ${response.statusText}`, 502);
 			}
 
 			const contentType = response.headers.get('content-type') || 'application/octet-stream';
@@ -107,7 +111,7 @@ export default {
 			const result = results[0];
 
 			if (result.format === 'error') {
-				return errorResponse(`Conversion failed: ${result.error}`, 422);
+				return errorResponse(env, `Conversion failed: ${result.error}`, 422);
 			}
 
 			let markdown = result.data ?? '';
@@ -120,13 +124,13 @@ export default {
 			if (env.IMAGES_BUCKET && env.R2_PUBLIC_URL) {
 				const imageUrls = collectImageUrls(rawHtmlForImages, markdown);
 				if (imageUrls.length > 0) {
-					markdown = rewriteImageUrls(markdown, imageUrls, env.R2_PUBLIC_URL);
+					markdown = rewriteImageUrls(markdown, imageUrls, env.R2_PUBLIC_URL, env);
 					// Upload in the background — does not block the response
-					ctx.waitUntil(uploadImages(imageUrls, env.IMAGES_BUCKET));
+					ctx.waitUntil(uploadImages(imageUrls, env.IMAGES_BUCKET, env));
 				}
 			}
 
-			return jsonResponse({
+			return jsonResponse(env, {
 				success: true,
 				url: targetUrl,
 				name: result.name,
@@ -136,7 +140,7 @@ export default {
 			});
 		} catch (err: unknown) {
 			const message = err instanceof Error ? err.message : 'Unknown error';
-			return errorResponse(`Internal error: ${message}`, 500);
+			return errorResponse(env, `Internal error: ${message}`, 500);
 		}
 	},
 } satisfies ExportedHandler<Env>;

@@ -15,19 +15,7 @@
  */
 
 import { robustFetch } from './fetch';
-
-// ---------------------------------------------------------------------------
-// Constants
-// ---------------------------------------------------------------------------
-
-/** Allowed hostname suffix for image proxying */
-const ALLOWED_SUFFIX = 'qpic.cn';
-
-/** Default TTL for cached images (8 hours) */
-const TTL_MS = 8 * 60 * 60 * 1000;
-
-/** Max concurrent uploads per request */
-const UPLOAD_CONCURRENCY = 5;
+import { allowedImageHosts, imageTtlMs, imageUploadConcurrency, imageCacheMaxAge } from './config';
 
 /** Map content-type fragments to file extensions */
 const MIME_TO_EXT: Record<string, string> = {
@@ -43,10 +31,11 @@ const MIME_TO_EXT: Record<string, string> = {
 // URL helpers
 // ---------------------------------------------------------------------------
 
-/** Check whether a URL belongs to the qpic.cn allowlist */
-export function isAllowedImageHost(url: string): boolean {
+/** Check whether a URL belongs to the configured image host allowlist */
+export function isAllowedImageHost(url: string, env: Env): boolean {
 	try {
-		return new URL(url).hostname.endsWith(ALLOWED_SUFFIX);
+		const hostname = new URL(url).hostname;
+		return allowedImageHosts(env).some((suffix) => hostname.endsWith(suffix));
 	} catch {
 		return false;
 	}
@@ -77,10 +66,11 @@ function inferExtension(url: URL): string {
  *
  * Returns `null` for non-allowlisted URLs.
  */
-export function toR2Key(originalUrl: string): string | null {
+export function toR2Key(originalUrl: string, env: Env): string | null {
 	try {
 		const url = new URL(originalUrl);
-		if (!url.hostname.endsWith(ALLOWED_SUFFIX)) return null;
+		const hosts = allowedImageHosts(env);
+		if (!hosts.some((suffix) => url.hostname.endsWith(suffix))) return null;
 
 		const prefix = url.hostname.replace(/\./g, '_');
 		const path = url.pathname.replace(/^\//, '');
@@ -121,13 +111,13 @@ export function collectImageUrls(html: string, markdown: string): string[] {
  * @param imageUrls   - WeChat image URLs previously collected
  * @param r2PublicUrl - Public base URL of the R2 bucket (no trailing slash)
  */
-export function rewriteImageUrls(markdown: string, imageUrls: string[], r2PublicUrl: string): string {
+export function rewriteImageUrls(markdown: string, imageUrls: string[], r2PublicUrl: string, env: Env): string {
 	if (imageUrls.length === 0) return markdown;
 
 	let result = markdown;
 
 	for (const originalUrl of imageUrls) {
-		const key = toR2Key(originalUrl);
+		const key = toR2Key(originalUrl, env);
 		if (!key) continue;
 
 		const replacement = `${r2PublicUrl}/${key}`;
@@ -165,17 +155,22 @@ function extFromContentType(ct: string): string {
 export async function uploadImages(
 	imageUrls: string[],
 	bucket: R2Bucket,
+	env: Env,
 ): Promise<{ uploaded: number; skipped: number; failed: number }> {
 	const stats = { uploaded: 0, skipped: 0, failed: 0 };
 	if (imageUrls.length === 0) return stats;
 
+	const concurrency = imageUploadConcurrency(env);
+	const ttl = imageTtlMs(env);
+	const cacheMaxAge = imageCacheMaxAge(env);
+
 	// Process in batches to limit concurrency
-	for (let i = 0; i < imageUrls.length; i += UPLOAD_CONCURRENCY) {
-		const batch = imageUrls.slice(i, i + UPLOAD_CONCURRENCY);
+	for (let i = 0; i < imageUrls.length; i += concurrency) {
+		const batch = imageUrls.slice(i, i + concurrency);
 
 		const results = await Promise.allSettled(
-			batch.map(async (url) => {
-				const key = toR2Key(url);
+				batch.map(async (url) => {
+				const key = toR2Key(url, env);
 				if (!key) {
 					stats.skipped++;
 					return;
@@ -207,10 +202,10 @@ export async function uploadImages(
 				await bucket.put(key, data, {
 					httpMetadata: {
 						contentType: ct,
-						cacheControl: 'public, max-age=28800',
+						cacheControl: `public, max-age=${cacheMaxAge}`,
 					},
 					customMetadata: {
-						expiresAt: new Date(Date.now() + TTL_MS).toISOString(),
+						expiresAt: new Date(Date.now() + ttl).toISOString(),
 						originalUrl: url,
 						extension: extFromContentType(ct),
 					},

@@ -76,10 +76,12 @@ curl -X POST https://anything-md.doocs.workers.dev/ \
 
 ```
 src/
-├── index.ts   # Worker 入口 — 路由处理与 toMarkdown 转换
-├── cors.ts    # CORS 响应头、JSON/错误响应工具函数
-├── fetch.ts   # robustFetch — 带重试、超时、退避的 HTTP 请求
-└── html.ts    # HTML 预处理 — 标题提取、懒加载图片修复、转义
+├── index.ts    # Worker 入口 — 路由处理与 toMarkdown 转换
+├── config.ts   # 集中配置 — 从环境变量读取所有可调参数
+├── cors.ts     # CORS 响应头、JSON/错误响应工具函数
+├── fetch.ts    # robustFetch — 带重试、超时、退避的 HTTP 请求
+├── html.ts     # HTML 预处理 — 标题提取、懒加载图片修复、转义
+└── r2.ts       # R2 图片代理 — 提取、替换、上传微信图片
 ```
 
 ## 快速开始
@@ -127,14 +129,55 @@ npm run cf-typegen
 
 ## 配置
 
-项目配置位于 `wrangler.jsonc`，关键配置项：
+所有可调参数均通过 `wrangler.jsonc` 中的 `vars` 配置，用户 clone 后只需修改配置即可部署到自己的 Workers。
 
-| 配置 | 说明 |
-|------|------|
-| `name` | Worker 名称，也是子域名前缀 |
-| `ai.binding` | Workers AI 绑定，用于调用 `toMarkdown` |
-| `compatibility_date` | Workers 运行时兼容日期 |
-| `compatibility_flags` | 启用 `nodejs_compat` 以支持 Node.js API |
+本地开发时可复制 `.dev.vars.example` 为 `.dev.vars` 来覆盖配置。
+
+### 核心配置（wrangler.jsonc）
+
+| 配置项 | 说明 | 默认值 |
+|--------|------|--------|
+| `name` | Worker 名称，也是子域名前缀 | `anything-md` |
+| `ai.binding` | Workers AI 绑定 | `AI` |
+| `r2_buckets[0].bucket_name` | R2 存储桶名称 | `anything-md-images` |
+
+### 环境变量（vars）
+
+| 变量 | 说明 | 默认值 |
+|------|------|--------|
+| `R2_PUBLIC_URL` | R2 存储桶的公开访问域名 | — |
+| `IMAGE_PROXY_HOSTS` | 允许代理的图片域名后缀，逗号分隔 | `qpic.cn` |
+| `IMAGE_TTL_HOURS` | 图片在 R2 中的缓存时长（小时） | `8` |
+| `IMAGE_UPLOAD_CONCURRENCY` | 每次请求的最大并发上传数 | `5` |
+| `FETCH_TIMEOUT_MS` | 单次 HTTP 请求超时时间（毫秒） | `15000` |
+| `FETCH_MAX_ATTEMPTS` | HTTP 请求最大重试次数 | `3` |
+| `CORS_ORIGIN` | CORS 允许的来源，`*` 表示全部 | `*` |
+
+### 自行部署步骤
+
+```bash
+# 1. 克隆项目
+git clone https://github.com/doocs/anything-md.git
+cd anything-md
+
+# 2. 安装依赖
+npm install
+
+# 3. 登录 Cloudflare
+npx wrangler login
+
+# 4. 创建 R2 存储桶（名称与 wrangler.jsonc 中一致）
+npx wrangler r2 bucket create anything-md-images
+
+# 5. 修改 wrangler.jsonc 中的配置
+#    - name: 你的 Worker 名称
+#    - r2_buckets[0].bucket_name: 你的桶名
+#    - vars.R2_PUBLIC_URL: 你的 R2 自定义域名
+#    - 其他 vars 按需调整
+
+# 6. 部署
+npm run deploy
+```
 
 ## 定价
 

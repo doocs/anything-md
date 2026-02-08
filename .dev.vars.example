@@ -1,0 +1,33 @@
+# ============================================================
+# Anything-MD — Environment Variables Example
+# Copy this file to .dev.vars and fill in your values.
+# These override wrangler.jsonc vars during local development.
+# ============================================================
+
+# R2 bucket public URL (custom domain or r2.dev subdomain)
+R2_PUBLIC_URL=https://your-bucket.your-domain.com
+
+# Comma-separated hostname suffixes allowed for image proxying
+# Default: qpic.cn
+IMAGE_PROXY_HOSTS=qpic.cn
+
+# How long cached images stay in R2 (hours)
+# Default: 8
+IMAGE_TTL_HOURS=8
+
+# Max parallel image uploads per request
+# Default: 5
+IMAGE_UPLOAD_CONCURRENCY=5
+
+# Fetch timeout per request (milliseconds)
+# Default: 15000
+FETCH_TIMEOUT_MS=15000
+
+# Max fetch retry attempts
+# Default: 3
+FETCH_MAX_ATTEMPTS=3
+
+# CORS Access-Control-Allow-Origin header
+# Use "*" to allow all origins, or a specific origin like "https://your-app.com"
+# Default: *
+CORS_ORIGIN=*

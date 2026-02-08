@@ -76,10 +76,12 @@ curl -X POST https://anything-md.doocs.workers.dev/ \
 
 ```
 src/
-├── index.ts   # Worker entry — routing and toMarkdown conversion
-├── cors.ts    # CORS headers, JSON/error response helpers
-├── fetch.ts   # robustFetch — HTTP with retries, timeout, and back-off
-└── html.ts    # HTML preprocessing — title extraction, lazy-image fix, escaping
+├── index.ts    # Worker entry — routing and toMarkdown conversion
+├── config.ts   # Centralised config — reads all tuneable params from env vars
+├── cors.ts     # CORS headers, JSON/error response helpers
+├── fetch.ts    # robustFetch — HTTP with retries, timeout, and back-off
+├── html.ts     # HTML preprocessing — title extraction, lazy-image fix, escaping
+└── r2.ts       # R2 image proxy — extract, rewrite, and upload WeChat images
 ```
 
 ## Getting Started
@@ -127,14 +129,55 @@ npm run cf-typegen
 
 ## Configuration
 
-Configuration lives in `wrangler.jsonc`. Key settings:
+All tuneable parameters are set via `vars` in `wrangler.jsonc`. After cloning, just edit the config and deploy to your own Workers.
 
-| Setting | Description |
-|---------|-------------|
-| `name` | Worker name, also the subdomain prefix |
-| `ai.binding` | Workers AI binding for calling `toMarkdown` |
-| `compatibility_date` | Workers runtime compatibility date |
-| `compatibility_flags` | Enables `nodejs_compat` for Node.js API support |
+For local development, copy `.dev.vars.example` to `.dev.vars` to override settings.
+
+### Core Settings (wrangler.jsonc)
+
+| Setting | Description | Default |
+|---------|-------------|---------|
+| `name` | Worker name, also the subdomain prefix | `anything-md` |
+| `ai.binding` | Workers AI binding | `AI` |
+| `r2_buckets[0].bucket_name` | R2 bucket name | `anything-md-images` |
+
+### Environment Variables (vars)
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `R2_PUBLIC_URL` | Public URL of your R2 bucket | — |
+| `IMAGE_PROXY_HOSTS` | Allowed image host suffixes, comma-separated | `qpic.cn` |
+| `IMAGE_TTL_HOURS` | Image cache TTL in R2 (hours) | `8` |
+| `IMAGE_UPLOAD_CONCURRENCY` | Max parallel uploads per request | `5` |
+| `FETCH_TIMEOUT_MS` | Per-request HTTP timeout (ms) | `15000` |
+| `FETCH_MAX_ATTEMPTS` | Max HTTP retry attempts | `3` |
+| `CORS_ORIGIN` | CORS allowed origin, `*` for all | `*` |
+
+### Deploy Your Own
+
+```bash
+# 1. Clone the repo
+git clone https://github.com/doocs/anything-md.git
+cd anything-md
+
+# 2. Install dependencies
+npm install
+
+# 3. Log in to Cloudflare
+npx wrangler login
+
+# 4. Create an R2 bucket (name must match wrangler.jsonc)
+npx wrangler r2 bucket create anything-md-images
+
+# 5. Edit wrangler.jsonc
+#    - name: your Worker name
+#    - r2_buckets[0].bucket_name: your bucket name
+#    - vars.R2_PUBLIC_URL: your R2 custom domain
+#    - adjust other vars as needed
+
+# 6. Deploy
+npm run deploy
+```
 
 ## Pricing
 

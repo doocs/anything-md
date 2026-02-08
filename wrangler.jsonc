@@ -31,7 +31,13 @@
 		}
 	],
 	"vars": {
-		"R2_PUBLIC_URL": "https://anything-md-images.doocs.org"
+		"R2_PUBLIC_URL": "https://anything-md-images.doocs.org",
+		"IMAGE_PROXY_HOSTS": "qpic.cn",
+		"IMAGE_TTL_HOURS": "8",
+		"IMAGE_UPLOAD_CONCURRENCY": "5",
+		"FETCH_TIMEOUT_MS": "15000",
+		"FETCH_MAX_ATTEMPTS": "3",
+		"CORS_ORIGIN": "*"
 	}
 	/**
 	 * Smart Placement
