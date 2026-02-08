@@ -12,11 +12,11 @@
  * Response: { success, url, name, mimeType, tokens, markdown }
  */
 
-import { handlePreflight, jsonResponse, errorResponse, textResponse } from './cors';
+import { fetchMaxAttempts, fetchTimeout } from './config';
+import { errorResponse, handlePreflight, jsonResponse, textResponse } from './cors';
 import { robustFetch } from './fetch';
-import { extractTitle, preprocessHtml, isWeChatArticle, extractWeChatContent } from './html';
+import { extractTitle, extractWeChatContent, isWeChatArticle, preprocessHtml } from './html';
 import { collectImageUrls, rewriteImageUrls, uploadImages } from './r2';
-import { fetchTimeout, fetchMaxAttempts } from './config';
 
 /** Derive a filename from a URL path */
 function getFileName(url: string): string {
@@ -185,9 +185,7 @@ export default {
 			let markdown = result.data ?? '';
 
 			// Proxy WeChat images through R2 (if configured)
-			const rawHtmlForImages = isHtmlContent(contentType)
-				? new TextDecoder().decode(body)
-				: '';
+			const rawHtmlForImages = isHtmlContent(contentType) ? new TextDecoder().decode(body) : '';
 
 			if (env.IMAGES_BUCKET && env.R2_PUBLIC_URL) {
 				const imageUrls = collectImageUrls(rawHtmlForImages, markdown);

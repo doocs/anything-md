@@ -16,7 +16,10 @@
 export function allowedImageHosts(env: Env): string[] {
 	const raw = env.IMAGE_PROXY_HOSTS;
 	return raw
-		? raw.split(',').map((s) => s.trim()).filter(Boolean)
+		? raw
+				.split(',')
+				.map((s) => s.trim())
+				.filter(Boolean)
 		: ['qpic.cn'];
 }
 

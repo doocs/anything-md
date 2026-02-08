@@ -14,8 +14,8 @@
  *    returned immediately while uploads happen in the background.
  */
 
+import { allowedImageHosts, imageCacheMaxAge, imageTtlMs, imageUploadConcurrency } from './config';
 import { robustFetch } from './fetch';
-import { allowedImageHosts, imageTtlMs, imageUploadConcurrency, imageCacheMaxAge } from './config';
 
 /** Map content-type fragments to file extensions */
 const MIME_TO_EXT: Record<string, string> = {
@@ -124,9 +124,9 @@ export function rewriteImageUrls(markdown: string, imageUrls: string[], r2Public
 		const escaped = originalUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 		// Match the URL followed by optional HTML-entity query params (&amp;…)
-		result = result.replace(new RegExp(escaped + '(?:&amp;[^)\\s"\'<>\\]]+)*', 'g'), replacement);
+		result = result.replace(new RegExp(`${escaped}(?:&amp;[^)\\s"'<>\\]]+)*`, 'g'), replacement);
 		// Also match plain & params
-		result = result.replace(new RegExp(escaped + '(?:&[^)\\s"\'<>\\]]+)*', 'g'), replacement);
+		result = result.replace(new RegExp(`${escaped}(?:&[^)\\s"'<>\\]]+)*`, 'g'), replacement);
 	}
 
 	return result;
@@ -169,7 +169,7 @@ export async function uploadImages(
 		const batch = imageUrls.slice(i, i + concurrency);
 
 		const results = await Promise.allSettled(
-				batch.map(async (url) => {
+			batch.map(async (url) => {
 				const key = toR2Key(url, env);
 				if (!key) {
 					stats.skipped++;
@@ -225,8 +225,6 @@ export async function uploadImages(
 		}
 	}
 
-	console.log(
-		`R2 upload complete — uploaded: ${stats.uploaded}, skipped: ${stats.skipped}, failed: ${stats.failed}`,
-	);
+	console.log(`R2 upload complete — uploaded: ${stats.uploaded}, skipped: ${stats.skipped}, failed: ${stats.failed}`);
 	return stats;
 }

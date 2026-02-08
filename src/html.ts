@@ -9,10 +9,7 @@
  */
 export function isWeChatArticle(html: string): boolean {
 	// Check for WeChat-specific meta tags and elements
-	return (
-		html.includes('id="js_content"') &&
-		html.includes('rich_media_content')
-	);
+	return html.includes('id="js_content"') && html.includes('rich_media_content');
 }
 
 /**
@@ -80,12 +77,7 @@ export function extractTitle(html: string, fallbackId: string): string {
 
 /** Escape HTML special characters in text content */
 export function escapeHtml(unsafe: string): string {
-	return unsafe
-		.replace(/&/g, '&amp;')
-		.replace(/</g, '&lt;')
-		.replace(/>/g, '&gt;')
-		.replace(/"/g, '&quot;')
-		.replace(/'/g, '&#039;');
+	return unsafe.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 
 /** Escape a value for use inside an HTML double-quoted attribute */
