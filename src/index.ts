@@ -14,6 +14,7 @@
 import { handlePreflight, jsonResponse, errorResponse } from './cors';
 import { robustFetch } from './fetch';
 import { extractTitle, preprocessHtml } from './html';
+import { collectImageUrls, rewriteImageUrls, uploadImages } from './r2';
 
 /** Derive a filename from a URL path */
 function getFileName(url: string): string {
@@ -109,13 +110,29 @@ export default {
 				return errorResponse(`Conversion failed: ${result.error}`, 422);
 			}
 
+			let markdown = result.data ?? '';
+
+			// Proxy WeChat images through R2 (if configured)
+			const rawHtmlForImages = isHtmlContent(contentType)
+				? new TextDecoder().decode(body)
+				: '';
+
+			if (env.IMAGES_BUCKET && env.R2_PUBLIC_URL) {
+				const imageUrls = collectImageUrls(rawHtmlForImages, markdown);
+				if (imageUrls.length > 0) {
+					markdown = rewriteImageUrls(markdown, imageUrls, env.R2_PUBLIC_URL);
+					// Upload in the background — does not block the response
+					ctx.waitUntil(uploadImages(imageUrls, env.IMAGES_BUCKET));
+				}
+			}
+
 			return jsonResponse({
 				success: true,
 				url: targetUrl,
 				name: result.name,
 				mimeType: result.mimeType,
 				tokens: result.tokens,
-				markdown: result.data,
+				markdown,
 			});
 		} catch (err: unknown) {
 			const message = err instanceof Error ? err.message : 'Unknown error';
