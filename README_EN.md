@@ -6,14 +6,15 @@
 
 ## Overview
 
-Anything-MD is a lightweight API service running on [Cloudflare Workers](https://workers.cloudflare.com/). Pass in any URL and it will fetch the page content, then convert it to structured Markdown using [Workers AI toMarkdown](https://developers.cloudflare.com/workers-ai/markdown-conversion/).
+Anything-MD is a lightweight API service running on [Cloudflare Workers](https://workers.cloudflare.com/). Pass in any URL to fetch the page content, or provide content directly, then convert it to structured Markdown using [Workers AI toMarkdown](https://developers.cloudflare.com/workers-ai/features/markdown-conversion/).
 
 Great for RAG data preprocessing, LLM training corpus collection, and giving AI Agents the ability to read web pages.
 
 ## Features
 
 - 🔗 **URL to Markdown** — Supply any URL, get back Markdown
-- 📄 **Multi-format support** — PDF, HTML, Office docs, images, CSV, and more
+- � **Direct Content Conversion** — No URL needed, pass HTML or other content directly
+- �📄 **Multi-format support** — PDF, HTML, Office docs, images, CSV, and more
 - 🖼️ **Image summarization** — Images are automatically described using Workers AI models
 - 🌐 **CORS enabled** — Full cross-origin support for direct browser calls
 - 🔁 **Smart retries** — Built-in exponential back-off with jitter for transient errors
@@ -44,11 +45,40 @@ GET /?url=https://example.com
 
 ### POST Request
 
+#### Convert from URL
+
 ```bash
 curl -X POST https://anything-md.doocs.org/ \
   -H "Content-Type: application/json" \
   -d '{"url": "https://example.com"}'
 ```
+
+#### Convert Direct Content
+
+No URL required — pass the content directly:
+
+```bash
+# Convert HTML content
+curl -X POST https://anything-md.doocs.org/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "html": "<html><body><h1>Hello</h1><p>This is a test.</p></body></html>"
+  }'
+
+# Or use the content parameter with contentType
+curl -X POST https://anything-md.doocs.org/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "<html><body><h1>Hello</h1></body></html>",
+    "contentType": "text/html",
+    "fileName": "my-page.html"
+  }'
+```
+
+Parameters:
+- `html` / `content`: Content to convert (choose one)
+- `contentType`: Content type, defaults to `text/html` (optional)
+- `fileName`: Output filename, defaults to `content.html`; titles are auto-extracted from HTML (optional)
 
 ### Success Response
 
@@ -71,6 +101,8 @@ curl -X POST https://anything-md.doocs.org/ \
   "error": "Failed to fetch URL: 404 Not Found"
 }
 ```
+
+> 📚 **More Examples**: Check out the [API Usage Examples](docs/api-examples.md) for detailed use cases and examples in various programming languages.
 
 ## Project Structure
 

@@ -6,16 +6,17 @@
 
 ## 简介
 
-Anything-MD 是一个部署在 [Cloudflare Workers](https://workers.cloudflare.com/) 上的轻量 API 服务。你只需传入一个 URL，它就会自动抓取页面内容，并利用 [Workers AI toMarkdown](https://developers.cloudflare.com/workers-ai/markdown-conversion/) 将其转换为结构化的 Markdown 文本。
+Anything-MD 是一个部署在 [Cloudflare Workers](https://workers.cloudflare.com/) 上的轻量 API 服务。你可以传入一个 URL 让它自动抓取页面内容，或直接传递内容，然后利用 [Workers AI toMarkdown](https://developers.cloudflare.com/workers-ai/features/markdown-conversion/) 将其转换为结构化的 Markdown 文本。
 
 适用于 RAG 数据预处理、LLM 训练语料采集、AI Agent 的网页阅读能力等场景。
 
 ## 特性
 
 - 🔗 **URL 转 Markdown** — 传入任意 URL，返回 Markdown 格式内容
+- � **直接内容转换** — 无需 URL，直接传递 HTML 或其他内容进行转换
 - 📄 **多格式支持** — PDF、HTML、Office 文档、图片、CSV 等均可转换
 - 🖼️ **图片智能描述** — 图片内容通过 Workers AI 模型自动生成文字摘要
-- 🌐 **CORS 跨域** — 完整的跨域支持，可从任意前端直接调用
+- 🌐 **CORS 跨域** — 完整的跨域支持,可从任意前端直接调用
 - 🔁 **智能重试** — 内置指数退避 + 抖动的重试机制，自动处理瞬态错误
 - ⏱️ **请求超时** — 每次请求默认 15s 超时，避免阻塞
 - 📝 **HTML 预处理** — 自动处理懒加载图片（`data-src`）、提取页面标题
@@ -44,11 +45,40 @@ GET /?url=https://example.com
 
 ### POST 请求
 
+#### 通过 URL 转换
+
 ```bash
 curl -X POST https://anything-md.doocs.org/ \
   -H "Content-Type: application/json" \
   -d '{"url": "https://example.com"}'
 ```
+
+#### 直接内容转换
+
+无需提供 URL，直接传递要转换的内容：
+
+```bash
+# 转换 HTML 内容
+curl -X POST https://anything-md.doocs.org/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "html": "<html><body><h1>Hello</h1><p>This is a test.</p></body></html>"
+  }'
+
+# 或使用 content 参数，并指定 contentType
+curl -X POST https://anything-md.doocs.org/ \
+  -H "Content-Type: application/json" \
+  -d '{
+    "content": "<html><body><h1>Hello</h1></body></html>",
+    "contentType": "text/html",
+    "fileName": "my-page.html"
+  }'
+```
+
+参数说明：
+- `html` / `content`：要转换的内容（二选一）
+- `contentType`：内容类型，默认为 `text/html`（可选）
+- `fileName`：输出文件名，默认为 `content.html`，HTML 内容会自动提取标题（可选）
 
 ### 响应格式
 
@@ -71,6 +101,8 @@ curl -X POST https://anything-md.doocs.org/ \
   "error": "Failed to fetch URL: 404 Not Found"
 }
 ```
+
+> 📚 **更多示例**：查看 [API 使用示例文档](docs/api-examples.md) 了解详细的使用案例和各种编程语言示例。
 
 ## 项目结构
 

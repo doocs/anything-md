@@ -7,6 +7,7 @@
  * API:
  *   GET  /?url=https://example.com
  *   POST / { "url": "https://example.com" }
+ *   POST / { "content": "<html>...</html>", "contentType": "text/html", "fileName": "page.html" }
  *
  * Response: { success, url, name, mimeType, tokens, markdown }
  */
@@ -40,8 +41,11 @@ export default {
 			return handlePreflight(env);
 		}
 
-		// --- Parse target URL from request ---
+		// --- Parse request parameters ---
 		let targetUrl: string | null = null;
+		let directContent: string | null = null;
+		let directContentType: string | null = null;
+		let directFileName: string | null = null;
 		let rawFormat = false;
 
 		if (request.method === 'GET') {
@@ -50,58 +54,102 @@ export default {
 			rawFormat = params.get('format') === 'raw';
 		} else if (request.method === 'POST') {
 			try {
-				const body = (await request.json()) as { url?: string; format?: string };
+				const body = (await request.json()) as {
+					url?: string;
+					content?: string;
+					html?: string;
+					contentType?: string;
+					fileName?: string;
+					format?: string;
+				};
 				targetUrl = body.url ?? null;
+				// Support both 'content' and 'html' for direct content
+				directContent = body.content ?? body.html ?? null;
+				directContentType = body.contentType ?? null;
+				directFileName = body.fileName ?? null;
 				rawFormat = body.format === 'raw';
 			} catch {
-				return errorResponse(env, 'Invalid JSON body. Expected: { "url": "https://..." }');
+				return errorResponse(env, 'Invalid JSON body. Expected: { "url": "https://..." } or { "content": "..." }');
 			}
 		} else {
 			return errorResponse(env, 'Method not allowed. Use GET or POST.', 405);
 		}
 
-		// No URL provided — return usage info
-		if (!targetUrl) {
+		// No URL or content provided — return usage info
+		if (!targetUrl && !directContent) {
 			return jsonResponse(env, {
 				success: true,
-				message: 'Anything-MD API — Convert any URL to Markdown',
+				message: 'Anything-MD API — Convert any URL or content to Markdown',
 				usage: {
 					GET: '/?url=https://example.com',
-					POST: '/ with JSON body { "url": "https://example.com" }',
+					POST_URL: '{ "url": "https://example.com" }',
+					POST_CONTENT: '{ "content": "<html>...</html>", "contentType": "text/html", "fileName": "page.html" }',
+					POST_HTML: '{ "html": "<html>...</html>" }',
 				},
 			});
 		}
 
-		// Validate URL format
-		try {
-			new URL(targetUrl);
-		} catch {
-			return errorResponse(env, 'Invalid URL provided.');
+		// Validate URL format if URL is provided
+		if (targetUrl) {
+			try {
+				new URL(targetUrl);
+			} catch {
+				return errorResponse(env, 'Invalid URL provided.');
+			}
 		}
 
 		try {
-			// Fetch remote content with retry
-			const response = await robustFetch(targetUrl, {
-				timeout: fetchTimeout(env),
-				maxAttempts: fetchMaxAttempts(env),
-			});
+			let body: ArrayBuffer;
+			let contentType: string;
+			let fileName: string;
 
-			if (!response.ok) {
-				return errorResponse(env, `Failed to fetch URL: ${response.status} ${response.statusText}`, 502);
+			// Branch 1: Direct content provided
+			if (directContent) {
+				// Use provided contentType or default to text/html
+				contentType = directContentType || 'text/html';
+				fileName = directFileName || 'content.html';
+
+				// Encode content to ArrayBuffer
+				body = new TextEncoder().encode(directContent).buffer as ArrayBuffer;
+
+				// For HTML content: preprocess and extract title
+				if (isHtmlContent(contentType)) {
+					const processed = preprocessHtml(directContent);
+					body = new TextEncoder().encode(processed).buffer as ArrayBuffer;
+
+					// Extract title if no custom fileName was provided
+					if (!directFileName) {
+						const title = extractTitle(directContent, 'content');
+						fileName = `${title}.html`;
+					}
+				}
 			}
+			// Branch 2: Fetch from URL
+			else if (targetUrl) {
+				const response = await robustFetch(targetUrl, {
+					timeout: fetchTimeout(env),
+					maxAttempts: fetchMaxAttempts(env),
+				});
 
-			const contentType = response.headers.get('content-type') || 'application/octet-stream';
-			let body = await response.arrayBuffer();
-			let fileName = getFileName(targetUrl);
+				if (!response.ok) {
+					return errorResponse(env, `Failed to fetch URL: ${response.status} ${response.statusText}`, 502);
+				}
 
-			// For HTML content: preprocess lazy images and extract a better title
-			if (isHtmlContent(contentType)) {
-				const rawHtml = new TextDecoder().decode(body);
-				const processed = preprocessHtml(rawHtml);
-				body = new TextEncoder().encode(processed).buffer as ArrayBuffer;
+				contentType = response.headers.get('content-type') || 'application/octet-stream';
+				body = await response.arrayBuffer();
+				fileName = getFileName(targetUrl);
 
-				const title = extractTitle(rawHtml, fileName.replace(/\.html$/, ''));
-				fileName = `${title}.html`;
+				// For HTML content: preprocess lazy images and extract a better title
+				if (isHtmlContent(contentType)) {
+					const rawHtml = new TextDecoder().decode(body);
+					const processed = preprocessHtml(rawHtml);
+					body = new TextEncoder().encode(processed).buffer as ArrayBuffer;
+
+					const title = extractTitle(rawHtml, fileName.replace(/\.html$/, ''));
+					fileName = `${title}.html`;
+				}
+			} else {
+				return errorResponse(env, 'No URL or content provided.');
 			}
 
 			// Convert to Markdown via Workers AI
@@ -141,7 +189,7 @@ export default {
 
 			return jsonResponse(env, {
 				success: true,
-				url: targetUrl,
+				url: targetUrl ?? undefined,
 				name: result.name,
 				mimeType: result.mimeType,
 				tokens: result.tokens,
