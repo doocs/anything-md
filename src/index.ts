@@ -1,62 +1,48 @@
 /**
- * Anything-MD: Convert any URL content to Markdown using Cloudflare Workers AI
+ * Anything-MD Worker
  *
- * API Usage:
+ * Entry point for the Cloudflare Worker that converts any URL content
+ * to Markdown via the Workers AI toMarkdown binding.
+ *
+ * API:
  *   GET  /?url=https://example.com
  *   POST / { "url": "https://example.com" }
  *
- * Returns JSON: { "success": true, "url": "...", "name": "...", "markdown": "...", "tokens": 0, "mimeType": "..." }
+ * Response: { success, url, name, mimeType, tokens, markdown }
  */
 
-const CORS_HEADERS: Record<string, string> = {
-	'Access-Control-Allow-Origin': '*',
-	'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-	'Access-Control-Allow-Headers': 'Content-Type',
-	'Access-Control-Max-Age': '86400',
-};
+import { handlePreflight, jsonResponse, errorResponse } from './cors';
+import { robustFetch } from './fetch';
+import { extractTitle, preprocessHtml } from './html';
 
-function jsonResponse(data: unknown, status = 200): Response {
-	return new Response(JSON.stringify(data, null, 2), {
-		status,
-		headers: {
-			'Content-Type': 'application/json; charset=utf-8',
-			...CORS_HEADERS,
-		},
-	});
-}
-
-function errorResponse(message: string, status = 400): Response {
-	return jsonResponse({ success: false, error: message }, status);
-}
-
-/** Extract a reasonable filename from a URL */
+/** Derive a filename from a URL path */
 function getFileName(url: string): string {
 	try {
-		const pathname = new URL(url).pathname;
-		const lastSegment = pathname.split('/').filter(Boolean).pop();
-		if (lastSegment && lastSegment.includes('.')) {
-			return lastSegment;
-		}
-		// Default to .html for web pages without an extension
-		return lastSegment ? `${lastSegment}.html` : 'page.html';
+		const segment = new URL(url).pathname.split('/').filter(Boolean).pop();
+		if (segment?.includes('.')) return segment;
+		return segment ? `${segment}.html` : 'page.html';
 	} catch {
 		return 'page.html';
 	}
 }
 
+/** Determine whether the content type is HTML */
+function isHtmlContent(contentType: string): boolean {
+	return contentType.includes('text/html') || contentType.includes('application/xhtml');
+}
+
 export default {
 	async fetch(request, env, ctx): Promise<Response> {
-		// Handle CORS preflight
+		// CORS preflight
 		if (request.method === 'OPTIONS') {
-			return new Response(null, { status: 204, headers: CORS_HEADERS });
+			return handlePreflight();
 		}
 
-		// Parse the URL parameter
+		// --- Parse target URL from request ---
 		let targetUrl: string | null = null;
 
 		if (request.method === 'GET') {
-			const params = new URL(request.url).searchParams;
-			targetUrl = params.get('url');
+			targetUrl = new URL(request.url).searchParams.get('url');
 		} else if (request.method === 'POST') {
 			try {
 				const body = (await request.json()) as { url?: string };
@@ -68,6 +54,7 @@ export default {
 			return errorResponse('Method not allowed. Use GET or POST.', 405);
 		}
 
+		// No URL provided — return usage info
 		if (!targetUrl) {
 			return jsonResponse({
 				success: true,
@@ -79,7 +66,7 @@ export default {
 			});
 		}
 
-		// Validate URL
+		// Validate URL format
 		try {
 			new URL(targetUrl);
 		} catch {
@@ -87,28 +74,32 @@ export default {
 		}
 
 		try {
-			// Fetch the remote content
-			const response = await fetch(targetUrl, {
-				headers: {
-					'User-Agent': 'Anything-MD/1.0 (Cloudflare Workers)',
-					'Accept': '*/*',
-				},
-				redirect: 'follow',
-			});
+			// Fetch remote content with retry
+			const response = await robustFetch(targetUrl);
 
 			if (!response.ok) {
 				return errorResponse(`Failed to fetch URL: ${response.status} ${response.statusText}`, 502);
 			}
 
 			const contentType = response.headers.get('content-type') || 'application/octet-stream';
-			const arrayBuffer = await response.arrayBuffer();
-			const fileName = getFileName(targetUrl);
+			let body = await response.arrayBuffer();
+			let fileName = getFileName(targetUrl);
 
-			// Convert to Markdown using Workers AI
+			// For HTML content: preprocess lazy images and extract a better title
+			if (isHtmlContent(contentType)) {
+				const rawHtml = new TextDecoder().decode(body);
+				const processed = preprocessHtml(rawHtml);
+				body = new TextEncoder().encode(processed).buffer as ArrayBuffer;
+
+				const title = extractTitle(rawHtml, fileName.replace(/\.html$/, ''));
+				fileName = `${title}.html`;
+			}
+
+			// Convert to Markdown via Workers AI
 			const results = await env.AI.toMarkdown([
 				{
 					name: fileName,
-					blob: new Blob([arrayBuffer], { type: contentType }),
+					blob: new Blob([body], { type: contentType }),
 				},
 			]);
 
