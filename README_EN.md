@@ -179,9 +179,6 @@ npx wrangler r2 bucket create anything-md-images
 npm run deploy
 ```
 
-## Pricing
-
-`toMarkdown` is free for most format conversions. Image conversion uses Workers AI models for object detection and summarization, which may incur charges beyond the free tier. See [Workers AI Pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/) for details.
 
 ## License
 

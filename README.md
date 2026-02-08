@@ -179,10 +179,6 @@ npx wrangler r2 bucket create anything-md-images
 npm run deploy
 ```
 
-## 定价
-
-`toMarkdown` 对大多数格式免费。图片转换会使用 Workers AI 模型进行目标检测和摘要生成，超出免费额度后可能产生费用。详见 [Workers AI 定价](https://developers.cloudflare.com/workers-ai/platform/pricing/)。
-
 ## 许可证
 
 [MIT](LICENSE)
