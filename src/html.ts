@@ -8,8 +8,8 @@
  * Detects based on common patterns in WeChat article pages.
  */
 export function isWeChatArticle(html: string): boolean {
-	// Check for WeChat-specific meta tags and elements
-	return html.includes('id="js_content"') && html.includes('rich_media_content');
+  // Check for WeChat-specific meta tags and elements
+  return html.includes('id="js_content"') && html.includes('rich_media_content');
 }
 
 /**
@@ -17,15 +17,15 @@ export function isWeChatArticle(html: string): boolean {
  * Returns the extracted content if found, otherwise returns the original HTML.
  */
 export function extractWeChatContent(html: string): string {
-	// Try to extract content from id="js_content"
-	const contentMatch = html.match(/<div[^>]*id=["']js_content["'][^>]*>([\s\S]*?)<\/div>\s*(?:<\/div>|<script)/i);
+  // Try to extract content from id="js_content"
+  const contentMatch = html.match(/<div[^>]*id=["']js_content["'][^>]*>([\s\S]*?)<\/div>\s*(?:<\/div>|<script)/i);
 
-	if (contentMatch?.[1]) {
-		const content = contentMatch[1].trim();
+  if (contentMatch?.[1]) {
+    const content = contentMatch[1].trim();
 
-		// Build a minimal HTML structure with the extracted content
-		// This preserves the content while removing unnecessary page elements
-		return `<!DOCTYPE html>
+    // Build a minimal HTML structure with the extracted content
+    // This preserves the content while removing unnecessary page elements
+    return `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -36,10 +36,10 @@ ${content}
 </div>
 </body>
 </html>`;
-	}
+  }
 
-	// If extraction fails, return original HTML
-	return html;
+  // If extraction fails, return original HTML
+  return html;
 }
 
 /**
@@ -52,37 +52,37 @@ ${content}
  * @param fallbackId - Fallback identifier when no title is found
  */
 export function extractTitle(html: string, fallbackId: string): string {
-	const ogTitle = html.match(/<meta\s+property=["']og:title["']\s+content=["'](.*?)["']\s*\/?>/i);
-	const twTitle = html.match(/<meta\s+property=["']twitter:title["']\s+content=["'](.*?)["']\s*\/?>/i);
-	const tagTitle = html.match(/<title>(.*?)<\/title>/i);
+  const ogTitle = html.match(/<meta\s+property=["']og:title["']\s+content=["'](.*?)["']\s*\/?>/i);
+  const twTitle = html.match(/<meta\s+property=["']twitter:title["']\s+content=["'](.*?)["']\s*\/?>/i);
+  const tagTitle = html.match(/<title>(.*?)<\/title>/i);
 
-	let title = '';
-	if (ogTitle?.[1]) {
-		title = ogTitle[1].trim();
-	} else if (twTitle?.[1]) {
-		title = twTitle[1].trim();
-	} else if (tagTitle?.[1]) {
-		title = tagTitle[1].trim();
-	} else {
-		title = `page-${fallbackId}`;
-	}
+  let title = '';
+  if (ogTitle?.[1]) {
+    title = ogTitle[1].trim();
+  } else if (twTitle?.[1]) {
+    title = twTitle[1].trim();
+  } else if (tagTitle?.[1]) {
+    title = tagTitle[1].trim();
+  } else {
+    title = `page-${fallbackId}`;
+  }
 
-	// Sanitise: replace whitespace, strip unsafe chars, limit length
-	return title
-		.replace(/\s+/g, '_')
-		.replace(/[\\/:*?"<>|]/g, '')
-		.replace(/[^\w\u4e00-\u9fa5_\-.]/g, '')
-		.substring(0, 100);
+  // Sanitise: replace whitespace, strip unsafe chars, limit length
+  return title
+    .replace(/\s+/g, '_')
+    .replace(/[\\/:*?"<>|]/g, '')
+    .replace(/[^\w\u4e00-\u9fa5_\-.]/g, '')
+    .substring(0, 100);
 }
 
 /** Escape HTML special characters in text content */
 export function escapeHtml(unsafe: string): string {
-	return unsafe.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
+  return unsafe.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;');
 }
 
 /** Escape a value for use inside an HTML double-quoted attribute */
 export function escapeHtmlAttr(unsafe: string): string {
-	return unsafe.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
+  return unsafe.replace(/&/g, '&amp;').replace(/"/g, '&quot;');
 }
 
 /**
@@ -93,19 +93,19 @@ export function escapeHtmlAttr(unsafe: string): string {
  * `data-src` into `src` so that downstream converters can see the images.
  */
 export function preprocessHtml(html: string): string {
-	return html.replace(/<img\s+([^>]*?)data-src=["']([^"']+)["']([^>]*)>/gi, (match, before, dataSrc, after) => {
-		const attrs = before + after;
-		const srcMatch = attrs.match(/src=["']([^"']*)["']/i);
-		const srcValue = srcMatch?.[1] ?? '';
+  return html.replace(/<img\s+([^>]*?)data-src=["']([^"']+)["']([^>]*)>/gi, (match, before, dataSrc, after) => {
+    const attrs = before + after;
+    const srcMatch = attrs.match(/src=["']([^"']*)["']/i);
+    const srcValue = srcMatch?.[1] ?? '';
 
-		// Only replace if src is empty or a data-URI placeholder
-		if (!srcValue || srcValue.startsWith('data:')) {
-			const cleanBefore = before.replace(/src=["'][^"']*["']\s*/gi, '');
-			const cleanAfter = after.replace(/src=["'][^"']*["']\s*/gi, '');
-			const safeSrc = escapeHtmlAttr(dataSrc);
-			return `<img ${cleanBefore}src="${safeSrc}" data-src="${safeSrc}"${cleanAfter}>`;
-		}
+    // Only replace if src is empty or a data-URI placeholder
+    if (!srcValue || srcValue.startsWith('data:')) {
+      const cleanBefore = before.replace(/src=["'][^"']*["']\s*/gi, '');
+      const cleanAfter = after.replace(/src=["'][^"']*["']\s*/gi, '');
+      const safeSrc = escapeHtmlAttr(dataSrc);
+      return `<img ${cleanBefore}src="${safeSrc}" data-src="${safeSrc}"${cleanAfter}>`;
+    }
 
-		return match;
-	});
+    return match;
+  });
 }
