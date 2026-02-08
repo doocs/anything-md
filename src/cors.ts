@@ -26,6 +26,17 @@ export function jsonResponse(env: Env, data: unknown, status = 200): Response {
 	});
 }
 
+/** Build a plain-text response with CORS headers */
+export function textResponse(env: Env, text: string, status = 200): Response {
+	return new Response(text, {
+		status,
+		headers: {
+			'Content-Type': 'text/markdown; charset=utf-8',
+			...getCorsHeaders(env),
+		},
+	});
+}
+
 /** Shorthand for an error JSON response */
 export function errorResponse(env: Env, message: string, status = 400): Response {
 	return jsonResponse(env, { success: false, error: message }, status);

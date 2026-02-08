@@ -11,7 +11,7 @@
  * Response: { success, url, name, mimeType, tokens, markdown }
  */
 
-import { handlePreflight, jsonResponse, errorResponse } from './cors';
+import { handlePreflight, jsonResponse, errorResponse, textResponse } from './cors';
 import { robustFetch } from './fetch';
 import { extractTitle, preprocessHtml } from './html';
 import { collectImageUrls, rewriteImageUrls, uploadImages } from './r2';
@@ -42,13 +42,17 @@ export default {
 
 		// --- Parse target URL from request ---
 		let targetUrl: string | null = null;
+		let rawFormat = false;
 
 		if (request.method === 'GET') {
-			targetUrl = new URL(request.url).searchParams.get('url');
+			const params = new URL(request.url).searchParams;
+			targetUrl = params.get('url');
+			rawFormat = params.get('format') === 'raw';
 		} else if (request.method === 'POST') {
 			try {
-				const body = (await request.json()) as { url?: string };
+				const body = (await request.json()) as { url?: string; format?: string };
 				targetUrl = body.url ?? null;
+				rawFormat = body.format === 'raw';
 			} catch {
 				return errorResponse(env, 'Invalid JSON body. Expected: { "url": "https://..." }');
 			}
@@ -128,6 +132,11 @@ export default {
 					// Upload in the background — does not block the response
 					ctx.waitUntil(uploadImages(imageUrls, env.IMAGES_BUCKET, env));
 				}
+			}
+
+			// Return raw Markdown text or JSON envelope
+			if (rawFormat) {
+				return textResponse(env, markdown);
 			}
 
 			return jsonResponse(env, {
